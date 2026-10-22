@@ -1,8 +1,10 @@
 # 消息通知桥接器
 
-独立运行的 Go 服务：接收禅道 Bug webhook，查询 Bug 当前指派人，在 Mattermost 中与指派人建立私聊并发送通知。
+接收推送过来的webhook消息，解析消息并发送到目标应用中。
 
-不再依赖 Traefik WASM，直接以 HTTP 服务方式运行。
+当前支持：
+- 接收禅道的webhook，查询Bug获取当前Bug指派人
+- 通过机器人在Mattermost中与指派人建立私聊并发送通知
 
 ## 功能
 
@@ -38,8 +40,7 @@ go build -o notify-bridge .
 复制示例配置：
 
 ```bash
-cp config/app/notify-bridge/notify-bridge.toml.example \
-   config/app/notify-bridge/notify-bridge.toml
+cp config.toml.example config.toml
 ```
 
 然后修改 `app.token` 以及各路由的 `source` / `target` 配置。
@@ -47,41 +48,10 @@ cp config/app/notify-bridge/notify-bridge.toml.example \
 启动：
 
 ```bash
-./notify-bridge run
+./notify-bridge run -c config.toml
 ```
 
-也可以显式指定配置文件：
-
-```bash
-./notify-bridge run --config /etc/notify-bridge/notify-bridge.toml
-```
-
-### 配置查找顺序
-
-使用 hd SDK 的配置加载规则：
-
-1. `--config` 指定的文件（优先）
-2. 未指定时从当前目录向上搜索：
-   - `./<app>.toml`
-   - `./config/app/<app>/<app>.<env>.toml`
-   - `./common/config/app/<app>/<app>.<env>.toml`
-   - 父目录中的同名路径
-3. 环境变量覆盖
-
-`<app>` 为 `notify-bridge`，`<env>` 来自 `HD_ENV`；未设置 `HD_ENV` 时使用 `<app>.toml`。
-
-### 环境变量覆盖
-
-hd SDK 会把 `HD_` 前缀的环境变量转换为配置项（下划线转点号）。常用：
-
-| 环境变量 | 配置项 |
-|---|---|
-| `HD_APP_TOKEN` | `app.token` |
-| `HD_ENV` | 选择 `<app>.<env>.toml` 配置文件 |
-
-生产环境建议把密钥放在环境变量或密钥管理系统中，不要提交到仓库。
-
-### 最小配置示例
+### 配置示例
 
 ```toml
 [sdk.log]
@@ -108,7 +78,7 @@ hd SDK 会把 `HD_` 前缀的环境变量转换为配置项（下划线转点号
             type = "mattermost"
             url = "http://mattermost"
             # 机器人访问令牌
-            token = "YOUR_MATTERMOST_BOT_TOKEN"
+            bot_token = "YOUR_MATTERMOST_BOT_TOKEN"
             # 机器人用户名
             bot_user = "YOUR_MATTERMOST_BOT_USER"
 ```
@@ -180,7 +150,6 @@ Content-Type: application/json
 | Content-Type 非 `application/json` | 415 |
 | JSON 解析失败、缺少 Bug ID | 400 |
 | 请求体超过 固定 1MB | 413 |
-| 非 Bug、动作未订阅、无指派人、重复 webhook | 200 `{"ok":true}`（跳过） |
 | 禅道或 Mattermost 调用失败 | 500，禅道会按自身策略重试 |
 | 发送成功 | 200 `{"ok":true}` |
 
@@ -188,11 +157,7 @@ Content-Type: application/json
 
 在禅道的 webhook 设置中：
 
-- URL 指向 `http://<服务地址>:8080/zentao-mattermost-notify`
-- 方法为 POST
-- Content-Type 为 `application/json`
-- 添加请求头 `Authorization: Bearer <app.token>` 或 `X-Webhook-Token: <app.token>`
-- 若禅道无法自定义请求头，可将 token 放在 URL 中：
+- URL 设置为如下其中一种方式：
   - `http://<服务地址>:8080/zentao-mattermost-notify?token=<app.token>`
   - `http://<服务地址>:8080/zentao-mattermost-notify/<app.token>`
 
@@ -205,8 +170,6 @@ Mattermost token 对应的机器人账号需要：
 1. 按用户名查询用户
 2. 创建/获取与指定用户的私聊频道
 3. 在私聊频道中发帖
-
-不需要 Team 信息，也不再创建或管理普通频道。
 
 ## 去重
 
@@ -233,10 +196,11 @@ Mattermost token 对应的机器人账号需要：
 ```bash
 docker build -t notify-bridge .
 docker run --rm -p 8080:8080 \
-  -v "$PWD/config:/app/config" \
-  -e HD_APP_TOKEN=CHANGE_ME \
+  -v "$PWD/config.toml:/app/config.toml:ro" \
   notify-bridge
 ```
+
+也可以用 `-e HD_APP_TOKEN=<token>` 覆盖配置中的 `app.token`。
 
 ## 测试
 

@@ -1,0 +1,76 @@
+name: Docker Build and Push
+
+on:
+  # 发布版本时，push Git Tag 自动触发
+  push:
+    tags:
+      - 'v*'
+
+  # 手动执行
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      # 1. 检出代码
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # 2. 设置 Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # 3. 登录 Docker Hub
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 4. 提取 Docker 镜像元数据
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: rfancn/notify-bridge
+          tags: |
+            # v1.2.3 -> 1.2.3
+            type=semver,pattern={{version}}
+
+            # v1.2.3 发布时同时更新 latest
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+
+            # 手动执行时使用 sha-<short>，避免覆盖 latest
+            type=sha,format=short,enable=${{ github.event_name == 'workflow_dispatch' }}
+
+      # 5. 设置构建时间
+      - name: Set build time
+        run: echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
+
+      # 6. 构建 / 推送 Docker 镜像
+      - name: Build and Push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+
+          push: true
+
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ env.BUILD_DATE }}
+
+          # GitHub Actions Build Cache
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
