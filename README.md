@@ -197,7 +197,7 @@ Mattermost token 对应的机器人账号需要：
 docker build -t notify-bridge .
 docker run --rm -p 8080:8080 \
   -v "$PWD/config.toml:/app/config.toml:ro" \
-  notify-bridge
+  rfancn/notify-bridge
 ```
 
 也可以用 `-e HD_APP_TOKEN=<token>` 覆盖配置中的 `app.token`。
