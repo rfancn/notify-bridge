@@ -1,4 +1,4 @@
-FROM golang:1.26-alpine AS builder
+FROM golang:1.27-alpine AS builder
 
 RUN apk add --no-cache ca-certificates git
 WORKDIR /src
@@ -23,8 +23,7 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 
-COPY --from=builder /out/notify-bridge /usr/local/bin/notify-bridge
-COPY config /app/config
+COPY --from=builder /out/notify-bridge /app/notify-bridge
 
 EXPOSE 8080
-ENTRYPOINT ["notify-bridge", "run"]
+ENTRYPOINT ["/app/notify-bridge", "run", "-c", "config.toml"]
