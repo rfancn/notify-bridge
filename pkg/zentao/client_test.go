@@ -215,10 +215,11 @@ func TestRefreshTokenEmptyResponse(t *testing.T) {
 
 func TestFormatMessage(t *testing.T) {
 	hook := Webhook{
-		Action: "edited",
-		Actor:  "admin",
-		Date:   "2026-10-08 17:43:58",
-		Text:   "admin编辑了Bug",
+		Action:  "edited",
+		Actor:   "admin",
+		Date:    "2026-10-08 17:43:58",
+		Comment: "补充说明",
+		Text:    "admin编辑了Bug",
 	}
 	bug := &Bug{
 		ID:          3,
@@ -240,9 +241,20 @@ func TestFormatMessage(t *testing.T) {
 		"操作：edited",
 		"时间：2026-10-08 17:43:58",
 		"admin编辑了Bug",
+		"**备注**：补充说明",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("消息缺少 %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestFormatMessageWithoutComment(t *testing.T) {
+	hook := Webhook{Action: "edited", Actor: "admin", Date: "2026-10-08 17:43:58", Text: "admin编辑了Bug"}
+	bug := &Bug{ID: 3, Title: "test_bug3"}
+
+	got := formatMessage(hook, bug)
+	if strings.Contains(got, "备注") {
+		t.Errorf("空备注不应渲染备注段落:\n%s", got)
 	}
 }
