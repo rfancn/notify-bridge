@@ -1,0 +1,6 @@
+logs/
+.idea/
+coverage.out
+notify-bridge
+config.toml
+
