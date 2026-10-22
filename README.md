@@ -1,4 +1,4 @@
-# ZenTao -> Mattermost
+# 消息通知桥接器
 
 独立运行的 Go 服务：接收禅道 Bug webhook，查询 Bug 当前指派人，在 Mattermost 中与指派人建立私聊并发送通知。
 
@@ -84,33 +84,33 @@ hd SDK 会把 `HD_` 前缀的环境变量转换为配置项（下划线转点号
 ### 最小配置示例
 
 ```toml
-[app]
-listen = ":8080"
-token = "CHANGE_ME"
-
-[app.routes.zentao-mattermost-notify]
-
-[app.routes.zentao-mattermost-notify.source]
-type = "zentao"
-url = "http://192.168.2.189"
-account = "admin"
-password = "YOUR_ZENTAO_PASSWORD"
-
-[app.routes.zentao-mattermost-notify.target]
-type = "mattermost"
-url = "https://im.example.internal"
-token = "YOUR_MATTERMOST_BOT_TOKEN"
-bot_user = "zentao-bot"
-
 [sdk.log]
-level = "info"
-filename = "notify-bridge.log"
-dir = "logs"
-[sdk.log.rotate]
-max_age = 168
-max_backup = 5
-max_size = 100
-compress = false
+    level = "info"
+    filename = "notify-bridge.log"
+    dir = "logs"
+    [sdk.log.rotate]
+        max_age = 168
+        max_backup = 5
+        max_size = 100
+
+[app]
+    listen = ":8080"
+    token = "CHANGE_ME"
+
+    [app.routes.zentao-mattermost-notify]
+        [app.routes.zentao-mattermost-notify.source]
+            type = "zentao"
+            url = "http://zentao"
+            account = "YOUR_ZENTAO_ACCOUNT"
+            password = "YOUR_ZENTAO_PASSWORD"
+        
+        [app.routes.zentao-mattermost-notify.target]
+            type = "mattermost"
+            url = "http://mattermost"
+            # 机器人访问令牌
+            token = "YOUR_MATTERMOST_BOT_TOKEN"
+            # 机器人用户名
+            bot_user = "YOUR_MATTERMOST_BOT_USER"
 ```
 
 `app.routes` 下的每一个 key 都会注册为一个 webhook 路径：`POST /<key>`，例如 `[app.routes.zentao-mattermost-notify]` 对应 `POST /zentao-mattermost-notify`。`source.type` 决定消息解析方式，`target.type` 决定通知发送方式。当前支持 `zentao` → `mattermost`。
@@ -165,7 +165,7 @@ Content-Type: application/json
   "action": "edited",
   "actor": "admin",
   "date": "2026-10-08 17:43:58",
-  "text": "admin编辑了Bug [#3::test_bug3](http://192.168.2.189/index.php?m=bug&f=view&id=3)"
+  "text": "admin编辑了Bug [#3::test_bug1](http://127.0.0.1/index.php?m=bug&f=view&id=1)"
 }
 ```
 
@@ -222,10 +222,10 @@ Mattermost token 对应的机器人账号需要：
 
 ```toml
 [app.routes.zentao-mattermost-notify.source]
-type = "zentao"
-url = "http://192.168.2.189"
-account = "admin"
-password = "YOUR_PASSWORD"
+    type = "zentao"
+    url = "http://127.0.0.1"
+    account = "admin"
+    password = "YOUR_PASSWORD"
 ```
 
 ## Docker

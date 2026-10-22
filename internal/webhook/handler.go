@@ -46,7 +46,7 @@ func handle(n notifier.Notifier) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		body := c.MustGet(bodyContextKey).([]byte)
 		if err := n.Notify(c.Request.Context(), body); err != nil {
-			sdk.Logger().Error("处理 webhook 失败", "err", err)
+			sdk.Logger().Error("通知失败", "err", err)
 			writeError(c, http.StatusInternalServerError, err.Error())
 			return
 		}
