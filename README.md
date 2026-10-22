@@ -77,10 +77,10 @@ cp config.toml.example config.toml
         [app.routes.zentao-mattermost-notify.target]
             type = "mattermost"
             url = "http://mattermost"
-            # 机器人访问令牌
-            bot_token = "YOUR_MATTERMOST_BOT_TOKEN"
             # 机器人用户名
             bot_user = "YOUR_MATTERMOST_BOT_USER"
+            # 机器人访问令牌
+            bot_token = "YOUR_MATTERMOST_BOT_TOKEN"
 ```
 
 `app.routes` 下的每一个 key 都会注册为一个 webhook 路径：`POST /<key>`，例如 `[app.routes.zentao-mattermost-notify]` 对应 `POST /zentao-mattermost-notify`。`source.type` 决定消息解析方式，`target.type` 决定通知发送方式。当前支持 `zentao` → `mattermost`。
