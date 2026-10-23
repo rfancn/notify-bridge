@@ -189,10 +189,21 @@ func (s *Source) invalidateToken() {
 }
 
 func formatMessage(h Webhook, b *Bug) string {
-	msg := fmt.Sprintf("**禅道 Bug 通知**\n\n- Bug #%d：%s\n- 产品：%s\n- 严重程度：%d\n- 优先级：%d\n- 状态：%s\n- 操作人：%s\n- 操作：%s\n- 时间：%s\n\n%s",
-		b.ID, b.Title, b.ProductName, b.Severity, b.Pri, b.Status, h.Actor, h.Action, h.Date, h.Text)
-	if comment := strings.TrimSpace(h.Comment); comment != "" {
-		msg += fmt.Sprintf("\n\n**备注**：%s", comment)
+	sections := make([]string, 0, 3)
+
+	// 第一段：动作
+	if action := strings.TrimSpace(h.Text); action != "" {
+		sections = append(sections, "**动作**\n\n"+action)
 	}
-	return msg
+
+	// 第二段：详情
+	sections = append(sections, fmt.Sprintf("**详情**\n\n- Bug #%d：%s\n- 产品：%s\n- 严重程度：%d\n- 优先级：%d\n- 状态：%s\n- 操作人：%s\n- 操作：%s\n- 时间：%s",
+		b.ID, b.Title, b.ProductName, b.Severity, b.Pri, b.Status, h.Actor, h.Action, h.Date))
+
+	// 第三段：备注
+	if comment := htmlToMarkdown(h.Comment); comment != "" {
+		sections = append(sections, "**备注**\n\n"+comment)
+	}
+
+	return strings.Join(sections, "\n\n")
 }
