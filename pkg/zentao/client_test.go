@@ -232,30 +232,57 @@ func TestFormatMessage(t *testing.T) {
 
 	got := formatMessage(hook, bug)
 	for _, want := range []string{
-		"Bug #3：test_bug3",
-		"产品：产品A",
-		"严重程度：2",
-		"优先级：1",
-		"状态：active",
-		"操作人：admin",
-		"操作：edited",
-		"时间：2026-10-08 17:43:58",
-		"admin编辑了Bug",
-		"**动作**",
-		"**详情**",
-		"**备注**",
-		"补充说明",
+		"### 🐛 Bug #3：test_bug3",
+		"**admin** 编辑了 Bug #3",
+		"- 产品：产品A",
+		"- 严重程度：2 ｜ 优先级：1",
+		"- 状态：active",
+		"- 时间：2026-10-08 17:43:58",
+		"> **备注**",
+		"> 补充说明",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("消息缺少 %q:\n%s", want, got)
 		}
 	}
 
-	actionPos := strings.Index(got, "**动作**")
-	detailsPos := strings.Index(got, "**详情**")
-	commentPos := strings.Index(got, "**备注**")
-	if actionPos >= detailsPos || detailsPos >= commentPos {
-		t.Errorf("消息应按动作、详情、备注顺序排列:\n%s", got)
+	titlePos := strings.Index(got, "### 🐛")
+	actionPos := strings.Index(got, "**admin**")
+	detailsPos := strings.Index(got, "- 产品：")
+	commentPos := strings.Index(got, "> **备注**")
+	if titlePos >= actionPos || actionPos >= detailsPos || detailsPos >= commentPos {
+		t.Errorf("消息应按标题、动作、详情、备注顺序排列:\n%s", got)
+	}
+}
+
+func TestFormatMessageLayout(t *testing.T) {
+	hook := Webhook{
+		Action:  "commented",
+		Actor:   "admin",
+		Date:    "2026-10-23 09:08:36",
+		Comment: "asdfasdfasdf asdf xxx",
+		Text:    "admin评论了Bug [#2::新闻中心页面问题](http://zentao/index.php?m=bug&f=view&id=2)",
+	}
+	bug := &Bug{
+		ID:          2,
+		Title:       "新闻中心页面问题",
+		ProductName: "公司企业网站建设",
+		Severity:    3,
+		Pri:         2,
+		Status:      "active",
+	}
+
+	want := "### 🐛 Bug #2：新闻中心页面问题\n\n" +
+		"**admin** 评论了 [Bug #2](http://zentao/index.php?m=bug&f=view&id=2)\n\n" +
+		"- 产品：公司企业网站建设\n" +
+		"- 严重程度：3 ｜ 优先级：2\n" +
+		"- 状态：active\n" +
+		"- 时间：2026-10-23 09:08:36\n\n" +
+		"> **备注**\n" +
+		"> asdfasdfasdf asdf xxx"
+
+	if got := formatMessage(hook, bug); got != want {
+		t.Errorf("formatMessage() =\n%s\n\nwant:\n%s", got, want)
 	}
 }
 
@@ -273,8 +300,11 @@ func TestFormatMessageWithHTMLComment(t *testing.T) {
 	if strings.Contains(got, "<p>") || strings.Contains(got, "<br") {
 		t.Errorf("消息不应包含原始 HTML 标签:\n%s", got)
 	}
-	if !strings.Contains(got, "**备注**\n\n第一行\n\n第二行 **加粗**") {
-		t.Errorf("备注 HTML 未正确转换:\n%s", got)
+	if strings.Contains(got, "**加粗**") {
+		t.Errorf("备注不应保留 HTML 样式:\n%s", got)
+	}
+	if !strings.Contains(got, "> **备注**\n> 第一行\n> 第二行 加粗") {
+		t.Errorf("备注 HTML 未转换为纯文本:\n%s", got)
 	}
 }
 
