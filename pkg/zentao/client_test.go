@@ -123,7 +123,7 @@ func TestTokenIsCached(t *testing.T) {
 	src := newSource(t, srv.URL)
 	body := []byte(`{"objectType":"bug","objectID":"3","action":"edited","text":"x"}`)
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		if _, err := src.Parse(context.Background(), body); err != nil {
 			t.Fatalf("第 %d 次 Parse() error = %v", i+1, err)
 		}
@@ -241,11 +241,40 @@ func TestFormatMessage(t *testing.T) {
 		"操作：edited",
 		"时间：2026-10-08 17:43:58",
 		"admin编辑了Bug",
-		"**备注**：补充说明",
+		"**动作**",
+		"**详情**",
+		"**备注**",
+		"补充说明",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("消息缺少 %q:\n%s", want, got)
 		}
+	}
+
+	actionPos := strings.Index(got, "**动作**")
+	detailsPos := strings.Index(got, "**详情**")
+	commentPos := strings.Index(got, "**备注**")
+	if actionPos >= detailsPos || detailsPos >= commentPos {
+		t.Errorf("消息应按动作、详情、备注顺序排列:\n%s", got)
+	}
+}
+
+func TestFormatMessageWithHTMLComment(t *testing.T) {
+	hook := Webhook{
+		Action:  "commented",
+		Actor:   "admin",
+		Date:    "2026-10-08 17:43:58",
+		Comment: "<p>第一行<br/>第二行&nbsp;<strong>加粗</strong></p>",
+		Text:    "admin添加了备注",
+	}
+	bug := &Bug{ID: 3, Title: "test_bug3"}
+
+	got := formatMessage(hook, bug)
+	if strings.Contains(got, "<p>") || strings.Contains(got, "<br") {
+		t.Errorf("消息不应包含原始 HTML 标签:\n%s", got)
+	}
+	if !strings.Contains(got, "**备注**\n\n第一行\n\n第二行 **加粗**") {
+		t.Errorf("备注 HTML 未正确转换:\n%s", got)
 	}
 }
 
