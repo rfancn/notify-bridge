@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -188,22 +189,79 @@ func (s *Source) invalidateToken() {
 	s.tokenMu.Unlock()
 }
 
+// actionVerbs 将禅道动作枚举转换为中文动词。
+var actionVerbs = map[string]string{
+	"opened":    "创建了",
+	"edited":    "编辑了",
+	"commented": "评论了",
+	"assigned":  "指派了",
+	"closed":    "关闭了",
+	"resolved":  "解决了",
+	"activated": "激活了",
+	"reopened":  "重新激活了",
+	"confirmed": "确认了",
+	"deleted":   "删除了",
+}
+
+var bugURLRe = regexp.MustCompile(`\]\((https?://[^)\s]+)\)`)
+
 func formatMessage(h Webhook, b *Bug) string {
-	sections := make([]string, 0, 3)
+	blocks := make([]string, 0, 4)
 
-	// 第一段：动作
-	if action := strings.TrimSpace(h.Text); action != "" {
-		sections = append(sections, "**动作**\n\n"+action)
+	// 标题
+	title := fmt.Sprintf("Bug #%d", b.ID)
+	if b.Title != "" {
+		title += "：" + b.Title
+	}
+	blocks = append(blocks, "### 🐛 "+title)
+
+	// 动作
+	if action := formatAction(h, b.ID); action != "" {
+		blocks = append(blocks, action)
 	}
 
-	// 第二段：详情
-	sections = append(sections, fmt.Sprintf("**详情**\n\n- Bug #%d：%s\n- 产品：%s\n- 严重程度：%d\n- 优先级：%d\n- 状态：%s\n- 操作人：%s\n- 操作：%s\n- 时间：%s",
-		b.ID, b.Title, b.ProductName, b.Severity, b.Pri, b.Status, h.Actor, h.Action, h.Date))
+	// 详情
+	details := make([]string, 0, 4)
+	if b.ProductName != "" {
+		details = append(details, "- 产品："+b.ProductName)
+	}
+	details = append(details, fmt.Sprintf("- 严重程度：%d ｜ 优先级：%d", b.Severity, b.Pri))
+	if b.Status != "" {
+		details = append(details, "- 状态："+b.Status)
+	}
+	if h.Date != "" {
+		details = append(details, "- 时间："+h.Date)
+	}
+	blocks = append(blocks, strings.Join(details, "\n"))
 
-	// 第三段：备注
-	if comment := htmlToMarkdown(h.Comment); comment != "" {
-		sections = append(sections, "**备注**\n\n"+comment)
+	// 备注（HTML 转为纯文本）
+	if comment := htmlToPlainText(h.Comment); comment != "" {
+		blocks = append(blocks, quoteLines("**备注**\n"+comment))
 	}
 
-	return strings.Join(sections, "\n\n")
+	return strings.Join(blocks, "\n\n")
+}
+
+// formatAction 生成操作行；动作枚举无法识别时回退到禅道原文。
+func formatAction(h Webhook, bugID int) string {
+	actor := strings.TrimSpace(h.Actor)
+	verb, ok := actionVerbs[h.Action]
+	if actor == "" || !ok {
+		return strings.TrimSpace(h.Text)
+	}
+
+	ref := fmt.Sprintf("Bug #%d", bugID)
+	if m := bugURLRe.FindStringSubmatch(h.Text); len(m) == 2 {
+		ref = fmt.Sprintf("[Bug #%d](%s)", bugID, m[1])
+	}
+	return fmt.Sprintf("**%s** %s %s", actor, verb, ref)
+}
+
+// quoteLines 将文本逐行转为 Markdown 引用块。
+func quoteLines(s string) string {
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = "> " + line
+	}
+	return strings.Join(lines, "\n")
 }

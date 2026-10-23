@@ -1,48 +1,31 @@
 package zentao
 
 import (
+	"html"
+	"regexp"
 	"strings"
-
-	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown"
-	"github.com/JohannesKaufmann/html-to-markdown/plugin"
 )
 
-// htmlToMarkdown 将禅道富文本备注转换为 Mattermost 可渲染的 Markdown。
-func htmlToMarkdown(src string) string {
+var (
+	// 块级标签与 <br> 转为换行，避免各段文字粘连。
+	blockTagRe = regexp.MustCompile(`(?i)<\s*(?:br|/p|/div|/li|/tr|/h[1-6]|/blockquote|/pre)\s*/?\s*>`)
+	htmlTagRe  = regexp.MustCompile(`<[^>]*>`)
+)
+
+// htmlToPlainText 将禅道富文本备注转换为纯文本，去除所有 HTML 标签和样式。
+func htmlToPlainText(src string) string {
 	if strings.TrimSpace(src) == "" {
 		return ""
 	}
 
-	converter := htmltomarkdown.NewConverter("", true, nil)
-	converter.Use(plugin.GitHubFlavored())
-
-	markdown, err := converter.ConvertString(src)
-	if err != nil {
-		// 转换失败时退化为去标签的纯文本
-		return normalizeMarkdown(stripTags(src))
-	}
-	return normalizeMarkdown(markdown)
+	text := blockTagRe.ReplaceAllString(src, "\n")
+	text = htmlTagRe.ReplaceAllString(text, "")
+	text = html.UnescapeString(text)
+	return normalizeText(text)
 }
 
-// stripTags 去掉 HTML 标签，仅在转换失败时兜底。
-func stripTags(s string) string {
-	var b strings.Builder
-	inTag := false
-	for _, r := range s {
-		switch {
-		case r == '<':
-			inTag = true
-		case r == '>':
-			inTag = false
-		case !inTag:
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
-}
-
-// normalizeMarkdown 统一换行与行尾空白，保留缩进以维持列表层级和代码块。
-func normalizeMarkdown(s string) string {
+// normalizeText 统一换行与行尾空白，并合并多余空行。
+func normalizeText(s string) string {
 	s = strings.ReplaceAll(s, "\u00a0", " ")
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	s = strings.ReplaceAll(s, "\r", "\n")
